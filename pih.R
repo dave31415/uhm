@@ -2,6 +2,7 @@
 library(xlsx)
 library(data.table)
 library(ggplot2)
+library(RMySQL)
 
 datadir="/Users/davej/TW/PIH/data/"
 big.file=paste(datadir,"UHM/july.xls",sep="")
@@ -36,7 +37,7 @@ read.uhm<-function(tab="patients",write.mysql=F,read.mysql=F,over.write=F){
       if(!(tab.mysql %in% dbListTables(con))) {
          stop(paste("Table",tab.mysql,"not in mysql"))
       }
-      data=dbReadTable(con,tab.mysql)
+      data=data.table(dbReadTable(con,tab.mysql))
       dbDisconnect(con)
    } else {
       print("Reading from spreadsheet")
@@ -109,5 +110,6 @@ maternity<-function(pat=read.patients()){
    #next to each other or into png files
    print(age.plot)
 }
+
 
 
