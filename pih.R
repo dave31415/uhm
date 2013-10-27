@@ -16,7 +16,7 @@ read.uhm<-function(tab="patients",write.mysql=F,read.mysql=F,over.write=F){
    #optionally, read from mysql database 
    #the sheets we have with mapping to number
    start=Sys.time()
-   db="umh"
+   db="uhm"
    user="root"
    #the table name that will exist in MySQL
    suff=""
@@ -42,6 +42,7 @@ read.uhm<-function(tab="patients",write.mysql=F,read.mysql=F,over.write=F){
    } else {
       print("Reading from spreadsheet")
       data=data.table(read.xlsx(big.file,sheet))
+      print(paste(nrow(data),"rows"))
    }
    print("Read time")
    print(Sys.time()-start.read)
@@ -111,5 +112,23 @@ maternity<-function(pat=read.patients()){
    print(age.plot)
 }
 
-
+load.all.mysql<-function(){
+   #read all tabs from the spreadsheet and write them all to mysql
+   #after that, read the mysql tables in just to check things
+   
+   sheets=list(
+               patients=6,checkins=7,consultations=8,
+               #pivot_diagnoses=9,
+               diagnoses=10,visits=11,hospitalization=12,
+               vitals=13,
+               #pivot_surgery=14,
+               postOpNote1=15,
+               postOpNote2=16)
+   
+   for (tab in names(sheets)) {
+      print(tab)
+      d=read.uhm(tab,write.mysql=T)
+      d2=read.uhm(tab,read.mysql=T)
+   }
+}
 
