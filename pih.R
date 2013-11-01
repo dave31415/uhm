@@ -1,82 +1,10 @@
-#pih
+#Top level program
+
 #TODO: fix issues with dots in xlsx names. Change to underscores so msql 
-#doesn't change them
+#doesn't change them later
 
-library(xlsx)
-library(data.table)
-library(ggplot2)
-library(RMySQL)
-
-datadir="/Users/davej/TW/PIH/data/"
-plotdir="/Users/davej/TW/PIH/plots/"
-big.file=paste(datadir,"UHM/july.xls",sep="")
-
-dopng=F
-textsize=18 #use a larger default textsize
-#use_theme=theme_bw
-use_theme=theme_gray
-theme_set(use_theme(base_size=textsize))
-
-catchment=c("Mirebalais","Saut d'Eau","Savanette")
-
-read.uhm<-function(tab="patients",write.mysql=F,read.mysql=T,over.write=F){
-   #read patient tab from spreadsheet (default) 
-   #TODO: generalize this to other tabs   
-   #optionally, write to mysql database 
-   #optionally, read from mysql database 
-   #the sheets we have with mapping to number
-   start=Sys.time()
-   db="uhm"
-   user="root"
-   #the table name that will exist in MySQL
-   suff=""
-   tab.mysql=paste(tab,suff,sep="")
-   sheets=list(patients=6,checkins=7,consultations=8,pivot_diagnoses=9,
-      diagnoses=10,visits=11,hospitalization=12,vitals=13,pivot_surgery=14,
-      postOpNote1=15,postOpNote2=16)
-   if (!(tab %in% names(sheets))) {
-      print("sheetlist")
-      print(sheets)
-      stop(paste("tab",tab,"not in sheet list"))
-   }
-   sheet=sheets[[tab]]
-   start.read=Sys.time()
-   if (read.mysql) {
-      print(paste("Reading from MySQL, Table:",tab.mysql))
-      con=dbConnect(MySQL(),user=user,db=db)
-      if(!(tab.mysql %in% dbListTables(con))) {
-         stop(paste("Table",tab.mysql,"not in mysql"))
-      }
-      data=data.table(dbReadTable(con,tab.mysql))
-      dbDisconnect(con)
-   } else {
-      print("Reading from spreadsheet")
-      data=data.table(read.xlsx(big.file,sheet))
-      print(paste(nrow(data),"rows"))
-   }
-   print("Read time")
-   print(Sys.time()-start.read)
-   if (write.mysql) {
-      start.write=Sys.time()
-      print(paste("Writing to MySQL, Table: ",tab.mysql))
-      con=dbConnect(MySQL(),user=user,db=db)
-      if(tab.mysql %in% dbListTables(con)) {
-         if (over.write==F){
-            stop(paste("Table",tab.mysql,"already exist, use over.write=T to over-write"))
-         } else {
-            print(paste("Over-writing table",tab.mysql))
-            dbRemoveTable(con,tab.mysql)
-         }
-      }
-      dbWriteTable(con,tab.mysql,data)
-      dbDisconnect(con)
-      print("Write time")
-      print(Sys.time()-start.write)
-   }
-   print("Total time")
-   print(Sys.time()-start)
-   return(data)
-}
+rootdir="/Users/davej/TW/PIH/"
+source(paste(rootdir,"setup.R",sep=""))
 
 get.maternity<-function(pat=read.uhm(tab="patients")){
    #Get all maternity patients and relevant columns
@@ -112,11 +40,23 @@ maternity<-function(pat=read.uhm(tab="patients")){
    #Male.Fem=table(Maternity[,gender])
    Age.Groups=Maternity[,.N,by=age.group]
    Geo.Orig=Maternity[,.N,by=inside.catchment]
-   
    #add percentages
    Male.Fem[,Percent:=round(100*N/Tot)]
    Age.Groups[,Percent:=round(100*N/Tot)]
    Geo.Orig[,Percent:=round(100*N/Tot)]
+   #write to html file
+   HTML('<div id="male_fem">',html.file)
+   HTML(Male.Fem,html.file)
+   HTML('</div>',html.file)
+   
+   HTML('<div id="age">',html.file)
+   HTML(Age.Groups,html.file) 
+   HTML('</div>',html.file)
+   
+   HTML('<div id="geo">',html.file)
+   HTML(Geo.Orig,html.file)
+   HTML('</div>',html.file)
+   
    #print out information
    line="---------------------------"
    print(Male.Fem)
@@ -129,7 +69,9 @@ maternity<-function(pat=read.uhm(tab="patients")){
    mf.plot<-ggplot(Mat,aes(factor(1),fill=gender))+geom_bar()+coord_polar("y")+ylab("")+xlab("")
    age.plot<-ggplot(Mat,aes(factor(1),fill=age.group))+geom_bar()+coord_polar("y")+ylab("")+xlab("")
    #put together into one panel?
-   multiplot(mf.plot,age.plot,cols=1)
+   show_plot(mf.plot,dopng=T,file="mfplot")
+   show_plot(age.plot,dopng=T,file="ageplot")
+   #multiplot(mf.plot,age.plot,cols=1)
 }
 
 womans.triage.top10<-function(){
@@ -139,6 +81,10 @@ womans.triage.top10<-function(){
    top.ten=counts[order(-N),][1:10,]
    top.ten=na.omit(top.ten)
    print(top.ten)
+   #write to html file
+   HTML('<div id="top_ten">',html.file)
+   HTML(top.ten,html.file)
+   HTML('</div>',html.file)
    #TODO: add an ordered factor so it plots the bars in right order                            
    #this isn't working as expected
    top.ten.plot<-ggplot(top.ten,aes(diag,N))+geom_bar(stat="identity")
@@ -159,8 +105,14 @@ clinicians<-function(diag=read.uhm(tab="diagnoses")){
    diag=diag[coded %in% c(0,1),]
    d=diag[,list(Num.DX=.N,Num.DX.coded=sum(coded)),by=provider]
    d=d[Num.DX>0,]
-   d[,Percent:=Num.DX.coded/Num.DX]
+   d[,Percent:=as.integer(100.0*Num.DX.coded/Num.DX)]
    d=d[order(Percent),]
+   #write to terminal
+   print(d)
+   #write to html file
+   HTML('<div id="clinicians">',html.file)
+   HTML(d,html.file)
+   HTML('</div>',html.file)
    p<-ggplot(d,aes(provider,Percent))+geom_bar(stat="identity")
    p=p+ylab("Percent Coded")
    p=p+coord_flip()
@@ -168,84 +120,17 @@ clinicians<-function(diag=read.uhm(tab="diagnoses")){
    return(d)
 }
 
-load.all.mysql<-function(){
-   #read all tabs from the spreadsheet and write them all to mysql
-   #after that, read the mysql tables in just to check things
+run.maternity<-function(){
+   #run all the functions and create an ugly html file
+   #obviously we could improve the webpage by making a template
    
-   sheets=list(
-               patients=6,checkins=7,consultations=8,
-               #pivot_diagnoses=9,
-               diagnoses=10,visits=11,hospitalization=12,
-               vitals=13,
-               #pivot_surgery=14,
-               postOpNote1=15,
-               postOpNote2=16)
-   
-   for (tab in names(sheets)) {
-      print(tab)
-      d=read.uhm(tab,write.mysql=T)
-      d2=read.uhm(tab,read.mysql=T)
-   }
-}
-
-multiplot <- function(..., plotlist=NULL, cols) {
-   #borrowed from somewhere online
-   #calllike this multiplot(p1,p1,p3...,cols=2)
-   require(grid)   
-   # Make a list from the ... arguments and plotlist
-   plots <- c(list(...), plotlist)
-   numPlots = length(plots)
-   # Make the panel
-   plotCols = cols                          # Number of columns of plots
-   plotRows = ceiling(numPlots/plotCols) # Number of rows needed, calculated from # of cols
-   # Set up the page
-   grid.newpage()
-   pushViewport(viewport(layout = grid.layout(plotRows, plotCols)))
-   vplayout <- function(x, y)
-      viewport(layout.pos.row = x, layout.pos.col = y)
-
-   # Make each plot, in the correct location
-   for (i in 1:numPlots) {
-      curRow = ceiling(i/plotCols)
-      curCol = (i-1) %% plotCols + 1
-      print(plots[[i]], vp = vplayout(curRow, curCol ))
-   }
-}
-
-wrap <- function(x,wid=10) {paste(strwrap(x,width=wid), collapse = "\n")}
-
-show_plot<-function(p="Nothing to Plot",dopng=F,file="TemporaryPlot",extra=NULL,
-                    sep="_",verb=0,width=800,height=700,dir=plotdir) {
-   
-   #a useful utility function for plotting or just printing to window
-   #p<-qplot(c(0,1))
-   #show_plot(p,dopng=T)
-   if (!dopng) {
-      print(p)
-      #and nothing else
-   } else {
-      #uses global plotdir
-      wmessage=paste("Warning, no file provided. Printing to :",file)
-      if (file == "TemporaryPlot") print(wmessage)
-      
-      ex=""
-      if (! is.null(extra)) {
-         #extra stuff to join in with underscores
-         ex=paste(sep,paste(extra,collapse=sep),sep="")
-      }
-      print(length(ex))
-      outfile=paste(dir,file,ex,".png",sep="")
-      if (verb > 0) print(paste("Writing to file:",outfile))
-      png(outfile,width=width,height=height)
-      print(p)
-      dev.off()
-   }
-}
-
-order.fac<-function(x){
-   #doesn't seem to fix my problem
-   y <- factor(x, 
-         levels=names(sort(table(x), 
-         decreasing=TRUE)),ordered=T)
-   return(y)
+   #target <- HTMLInitFile(filename=html.file, BackGroundColor="#BBBBEE")
+   HTML("<html><h1> This Webpage is Sooo Ugli!!</h1>",file=html.file,append=F)
+   maternity()
+   womans.triage.top10()
+   clinicians()
+   HTML('<div id="mfplot"><img src="mfplot.png"></div>"
+      <div id="ageplot>"><img src="ageplot.png"></div>
+      <div id="providers_plot"> <img src="providers.png"></div>
+      <div id="top_ten_plot"><img src="top.ten.women.png"></div>',file=html.file)
 }
