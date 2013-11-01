@@ -11,7 +11,7 @@ datadir="/Users/davej/TW/PIH/data/"
 plotdir="/Users/davej/TW/PIH/plots/"
 big.file=paste(datadir,"UHM/july.xls",sep="")
 
-dopng=T
+dopng=F
 textsize=18 #use a larger default textsize
 #use_theme=theme_bw
 use_theme=theme_gray
@@ -134,22 +134,38 @@ maternity<-function(pat=read.uhm(tab="patients")){
 
 womans.triage.top10<-function(){
    wt=get.womans.triage()
-   counts=wt[,.N,by=diagnosis_coded_en]
+   wt[,diag:=order.fac(diagnosis_coded_en)]
+   counts=wt[,.N,by=diag]
    top.ten=counts[order(-N),][1:10,]
    top.ten=na.omit(top.ten)
    print(top.ten)
    #TODO: add an ordered factor so it plots the bars in right order                            
-   top.ten[,diag:=diagnosis_coded_en]
+   #this isn't working as expected
    top.ten.plot<-ggplot(top.ten,aes(diag,N))+geom_bar(stat="identity")
    top.ten.plot=top.ten.plot+xlab("Diagnosis")
    top.ten.plot=top.ten.plot+ylab("Number")+coord_flip()
    #opts(axis.text.x  = theme_text(angle=35,hjust = 1,vjust =1))
-   
    #print(top.ten.plot)
    #use showplot instead and show how it can be saved to file
    show_plot(top.ten.plot,dopng=dopng,file="top.ten.women",
              width=1200,height=600)
    return(top.ten)
+}
+
+clinicians<-function(diag=read.uhm(tab="diagnoses")){
+   #make the table and plots on the clinicians on the maternity tab
+   diag=diag[name %in% c("Women\x92s Triage","Woman's Clinic"),]
+   diag=na.omit(diag[,list(provider,coded)])
+   diag=diag[coded %in% c(0,1),]
+   d=diag[,list(Num.DX=.N,Num.DX.coded=sum(coded)),by=provider]
+   d=d[Num.DX>0,]
+   d[,Percent:=Num.DX.coded/Num.DX]
+   d=d[order(Percent),]
+   p<-ggplot(d,aes(provider,Percent))+geom_bar(stat="identity")
+   p=p+ylab("Percent Coded")
+   p=p+coord_flip()
+   show_plot(p,dopng=T,file="providers")
+   return(d)
 }
 
 load.all.mysql<-function(){
@@ -196,10 +212,6 @@ multiplot <- function(..., plotlist=NULL, cols) {
    }
 }
 
-make.ordered.fac<-function(x){
-   #TODO, finish this
-}
-
 wrap <- function(x,wid=10) {paste(strwrap(x,width=wid), collapse = "\n")}
 
 show_plot<-function(p="Nothing to Plot",dopng=F,file="TemporaryPlot",extra=NULL,
@@ -230,3 +242,10 @@ show_plot<-function(p="Nothing to Plot",dopng=F,file="TemporaryPlot",extra=NULL,
    }
 }
 
+order.fac<-function(x){
+   #doesn't seem to fix my problem
+   y <- factor(x, 
+         levels=names(sort(table(x), 
+         decreasing=TRUE)),ordered=T)
+   return(y)
+}
