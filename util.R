@@ -1,6 +1,10 @@
 #utility functions
 
-wrap <- function(x,wid=10) {paste(strwrap(x,width=wid), collapse = "\n")}
+wrap <- function(x,wid=10) {
+   #put newlines into a string to make it wrap around 
+   #after wid characters
+   paste(strwrap(x,width=wid), collapse = "\n")
+}
 
 show_plot<-function(p="Nothing to Plot",dopng=F,file="TemporaryPlot",extra=NULL,
                     sep="_",verb=0,width=800,height=700,dir=plotdir) {
