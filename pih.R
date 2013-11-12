@@ -4,26 +4,56 @@
 #doesn't change them later
 
 rootdir="/Users/davej/TW/PIH/"
-source(paste(rootdir,"setup.R",sep=""))
+source(paste(rootdir,"/uhm/setup.R",sep=""))
+
+define.maternity<-function(){
+   loc=c("Labor and Delivery","Women\x92s Triage","Antepartum Ward","Postpartum Ward")
+   consult=read.uhm('consultations')
+   check=read.uhm('checkins')
+   consult_pat=unique(consult[encounter_location %in% loc,zlemr])
+   #print(length(consult_pat))
+   check_pat=unique(check[encounter_location %in% loc,zlemr])
+   #print(length(check_pat))
+   both=unique(c(consult_pat,check_pat))
+   nmat=length(both)
+   print(paste(nmat,"unique maternity patients"))
+   return(both)
+}
+
+define.end.date<-function(pat){
+   d=na.omit(as.Date(pat$date_registered))
+   dmax=max(d)
+   year=year(dmax)
+   month=month(dmax)+1
+   if (month==13) {
+      month=1
+      year=year+1
+   }
+   end.date=as.Date(paste(year,month,"28",sep="-"))
+   return(end.date)
+}
 
 get.maternity<-function(pat=read.uhm(tab="patients")){
    #Get all maternity patients and relevant columns
-   Maternity=pat[Maternity_patient_==TRUE,
-                 list(gender,age_at_reg,commune)]
-   #total number of maternity patients
-   Tot=nrow(Maternity)
+   mat.pat=data.table(zlemr=define.maternity())
+   mat.pat[,Maternity.Patient:=T]
+   setkey(mat.pat,zlemr)
+   #Maternity=pat[Maternity_patient_==TRUE,
+   #              list(gender,age_at_reg,commune,zlemr)]
+   setkey(pat,zlemr)
+   Maternity=pat[mat.pat,list(gender,age.at.end,commune,zlemr)]
    #add inside.catchment column
    Maternity[,inside.catchment:=commune %in% catchment]   
    #add age groups TODO: check these 
    breaks=c(0,5,14,49,150)
-   Maternity[,age.group:=cut(age_at_reg,br=breaks)]
+   Maternity[,age.group:=cut(age.at.end,br=breaks)]
 }
 
 get.womans.triage<-function(diag=read.uhm(tab="diagnoses")){
    #TODO: check this logic with Phil, looks to give 
    #numbers different from spreadsheet
    #TODO, Woman's Triage has a funny character in it, why, issue with mysql,R,excel ?
-   return(diag[name %in% c("Women\x92s Triage","Woman's Clinic"),])
+   return(diag[name =="Women\x92s Triage" & coded ==1,])
 }
 
 maternity<-function(pat=read.uhm(tab="patients")){
@@ -41,6 +71,7 @@ maternity<-function(pat=read.uhm(tab="patients")){
    Age.Groups=Maternity[,.N,by=age.group]
    Geo.Orig=Maternity[,.N,by=inside.catchment]
    #add percentages
+   Tot=nrow(Maternity)
    Male.Fem[,Percent:=round(100*N/Tot)]
    Age.Groups[,Percent:=round(100*N/Tot)]
    Geo.Orig[,Percent:=round(100*N/Tot)]
@@ -100,13 +131,16 @@ womans.triage.top10<-function(){
 
 clinicians<-function(diag=read.uhm(tab="diagnoses")){
    #make the table and plots on the clinicians on the maternity tab
-   diag=diag[name %in% c("Women\x92s Triage","Woman's Clinic"),]
+   loc=c("Labor and Delivery","Women\x92s Triage","Antepartum Ward","Postpartum Ward")
+   diag=diag[name %in% loc,]
    diag=na.omit(diag[,list(provider,coded)])
    diag=diag[coded %in% c(0,1),]
    d=diag[,list(Num.DX=.N,Num.DX.coded=sum(coded)),by=provider]
    d=d[Num.DX>0,]
    d[,Percent:=as.integer(100.0*Num.DX.coded/Num.DX)]
-   d=d[order(Percent),]
+   d=d[order(-Num.DX),]
+   #change order of columns
+   d=d[,list(Num.DX.coded,Num.DX,Percent,provider)]
    #write to terminal
    print(d)
    #write to html file
@@ -134,3 +168,33 @@ run.maternity<-function(){
       <div id="providers_plot"> <img src="providers.png"></div>
       <div id="top_ten_plot"><img src="top.ten.women.png"></div>',file=html.file)
 }
+
+hosp.time<-function(){
+   hosp=read.uhm("hospitalization")
+   admit=c("Antepartum Ward","Labor and Delivery","Postpartum Ward")
+   h=hosp[admitting_ward %in% admit & outcome == "Discharged",]
+   tab=h[,list(.N,MeanHospTime=mean(length_of_hospitalization)),by=admitting_ward]
+   print(tab)
+   h=hosp[admitting_ward %in% admit & outcome == "Still Hospitalized" 
+            & length_of_hospitalization >= 14,]
+   tab2=h[,list(.N,MeanHospTime=mean(length_of_hospitalization)),by=admitting_ward]
+   print(tab2)
+}
+
+cascade<-function(){
+   #create the contingency table cascade
+   loc=c("Labor and Delivery","Women\x92s Triage","Antepartum Ward","Postpartum Ward")
+   consult=read.uhm("consultations")
+   consult=consult[encounter_location %in% loc,list(encounter_location,dispo_location,disposition)]
+   disp=c("Admit to hospital","Transfer within hospital")
+   #consult=consult[encounter_location %in% loc & disposition %in% disp,]
+   consult[,ad.tran:=(disposition %in% disp)]
+   consult[,dispo.new:=disposition]
+   consult[ad.tran==T,dispo.new:=paste("Admit/Transfer to",dispo_location)]
+   
+   con=consult[,.N, by=list(encounter_location,dispo.new)]
+   tab=xtabs(N ~ dispo.new + encounter_location, con)
+   return(tab)
+}
+   
+

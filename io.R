@@ -35,8 +35,8 @@ read.uhm<-function(tab="patients",write.mysql=F,read.mysql=T,over.write=F){
       data=data.table(read.xlsx(big.file,sheet))
       print(paste(nrow(data),"rows"))
    }
-   print("Read time")
-   print(Sys.time()-start.read)
+   #print("Read time")
+   #print(Sys.time()-start.read)
    if (write.mysql) {
       start.write=Sys.time()
       print(paste("Writing to MySQL, Table: ",tab.mysql))
@@ -51,11 +51,17 @@ read.uhm<-function(tab="patients",write.mysql=F,read.mysql=T,over.write=F){
       }
       dbWriteTable(con,tab.mysql,data)
       dbDisconnect(con)
-      print("Write time")
-      print(Sys.time()-start.write)
+      #print("Write time")
+      #print(Sys.time()-start.write)
    }
-   print("Total time")
-   print(Sys.time()-start)
+   #print("Total time")
+   #print(Sys.time()-start)
+   if (tab=="patients"){
+      end.date=define.end.date(data)
+      birth.date=data[,as.Date(birthdate)]
+      age=as.numeric((end.date-birth.date))/365.25
+      data[,age.at.end:=age]
+   }
    return(data)
 }
 
