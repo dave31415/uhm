@@ -97,8 +97,8 @@ maternity<-function(pat=read.uhm(tab="patients")){
    print(Geo.Orig)
    
    #make some plots
-   mf.plot<-ggplot(Mat,aes(factor(1),fill=gender))+geom_bar()+coord_polar("y")+ylab("")+xlab("")
-   age.plot<-ggplot(Mat,aes(factor(1),fill=age.group))+geom_bar()+coord_polar("y")+ylab("")+xlab("")
+   mf.plot<-ggplot(Maternity,aes(factor(1),fill=gender))+geom_bar()+coord_polar("y")+ylab("")+xlab("")
+   age.plot<-ggplot(Maternity,aes(factor(1),fill=age.group))+geom_bar()+coord_polar("y")+ylab("")+xlab("")
    #put together into one panel?
    show_plot(mf.plot,dopng=T,file="mfplot")
    show_plot(age.plot,dopng=T,file="ageplot")
